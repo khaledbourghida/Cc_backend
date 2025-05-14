@@ -78,7 +78,7 @@ exports.runFormat = async (req, res) => {
     const { code } = req.body;
 
     // Define paths
-    const clangPath = path.join(__dirname, '..', 'tools', 'clang-format.exe');
+    const clangPath = 'clang-format';
     const tempDir = path.join(__dirname, '..', 'temp');
     const tempFile = path.join(tempDir, 'format_temp.cpp');
 
