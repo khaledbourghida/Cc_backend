@@ -4,8 +4,7 @@
   "main": "server.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node server.js",
-    "postinstall": "apt-get update && apt-get install -y clang-format clang-tidy"
+    "start": "node server.js"
   },
   "keywords": [],
   "author": "",
@@ -14,6 +13,9 @@
   "dependencies": {
     "cors": "^2.8.5",
     "express": "^5.1.0",
-    "clang-format": "^1.8.0"
+    "clang-format": "^1.8.0",
+    "cpp-lint": "^0.1.2",
+    "prettier": "^2.8.8",
+    "astyle": "^1.1.0"
   }
 }
