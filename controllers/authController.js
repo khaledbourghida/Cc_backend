@@ -1,9 +1,10 @@
-const fs = require('fs');
+const fs = require('fs').promises;
 const path = require('path');
 const { exec } = require('child_process');
-const { error } = require('console');
 const { promisify } = require('util');
 const execAsync = promisify(exec);
+const astyle = require('astyle');
+const cppLint = require('cpp-lint');
 
 
 
@@ -119,39 +120,69 @@ exports.analyzeCode = async (req, res) => {
     }
 
     try {
-        // Create a temporary directory for analysis
+        // Create a temporary file for analysis
         const tempDir = path.join(__dirname, '..', 'temp');
         await fs.mkdir(tempDir, { recursive: true });
-        
-        // Write code to a temporary file (clang-tidy needs a file)
         const tempFile = path.join(tempDir, 'temp.cpp');
         await fs.writeFile(tempFile, code);
 
-        // Run clang-tidy with a comprehensive set of checks
-        const checks = [
-            'bugprone-*',          // Detect bug-prone patterns
-            'clang-analyzer-*',    // Static analyzer checks
-            'cppcoreguidelines-*', // C++ core guidelines
-            'performance-*',       // Performance-related checks
-            'readability-*',       // Readability issues
-            'modernize-*'          // Modernization suggestions
-        ].join(',');
+        // Analyze code using cpp-lint
+        const analysisResults = await new Promise((resolve, reject) => {
+            cppLint.lint(tempFile, {
+                filters: [
+                    '+whitespace',
+                    '+readability',
+                    '+performance',
+                    '+portability',
+                    '+information'
+                ]
+            }, (err, results) => {
+                // Clean up temp file
+                fs.unlink(tempFile).catch(console.error);
+                fs.rmdir(tempDir).catch(console.error);
 
-        const { stdout, stderr } = await execAsync(
-            `clang-tidy ${tempFile} -checks=${checks} --`,
-            { maxBuffer: 1024 * 1024 } // Increase buffer size for large outputs
-        );
+                if (err) reject(err);
+                else resolve(results);
+            });
+        });
 
-        // Clean up temporary files
-        await fs.unlink(tempFile);
-        await fs.rmdir(tempDir);
+        // Process and categorize results
+        const categorizedResults = {
+            errors: [],
+            warnings: [],
+            style: [],
+            performance: []
+        };
 
-        // Parse the analysis results
-        const analysisResults = parseClangTidyOutput(stdout + stderr);
+        analysisResults.forEach(result => {
+            const issue = {
+                message: result.message,
+                line: result.line,
+                type: result.severity
+            };
+
+            switch (result.category) {
+                case 'error':
+                    categorizedResults.errors.push(issue);
+                    break;
+                case 'warning':
+                    categorizedResults.warnings.push(issue);
+                    break;
+                case 'style':
+                case 'readability':
+                    categorizedResults.style.push(issue);
+                    break;
+                case 'performance':
+                    categorizedResults.performance.push(issue);
+                    break;
+                default:
+                    categorizedResults.warnings.push(issue);
+            }
+        });
 
         res.json({
             error: false,
-            results: analysisResults,
+            results: categorizedResults,
             message: 'Code analysis completed'
         });
     } catch (error) {
@@ -162,41 +193,4 @@ exports.analyzeCode = async (req, res) => {
             details: error.message
         });
     }
-};
-
-function parseClangTidyOutput(output) {
-    const results = {
-        errors: [],
-        warnings: [],
-        style: [],
-        performance: []
-    };
-
-    const lines = output.split('\n');
-    
-    for (const line of lines) {
-        if (!line.includes('warning:') && !line.includes('error:')) continue;
-
-        const result = {
-            message: line.trim(),
-            type: 'other'
-        };
-
-        // Categorize the issue
-        if (line.includes('error:')) {
-            result.type = 'error';
-            results.errors.push(result);
-        } else if (line.includes('performance-')) {
-            result.type = 'performance';
-            results.performance.push(result);
-        } else if (line.includes('readability-') || line.includes('modernize-')) {
-            result.type = 'style';
-            results.style.push(result);
-        } else {
-            result.type = 'warning';
-            results.warnings.push(result);
-        }
-    }
-
-    return results;
-} 
+}; 
