@@ -3,7 +3,9 @@ const path = require('path');
 const { exec } = require('child_process');
 const { promisify } = require('util');
 const execAsync = promisify(exec);
-// const execFilePromise = util.promisify(execFile);
+const util = require('util');
+const execFilePromise = util.promisify(execFile);
+const fsp = require('fs/promises');
 
 
 exports.getFunc = async (req , res) => {
@@ -120,9 +122,9 @@ exports.analyzeCode = async (req, res) => {
     try {
         // Create a temporary file for analysis
         const tempDir = path.join(__dirname, '..', 'temp');
-        await fs.mkdir(tempDir, { recursive: true });
+        await fsp.mkdir(tempDir, { recursive: true });
         const tempFile = path.join(tempDir, 'temp.cpp');
-        await fs.writeFile(tempFile, code);
+        await fsp.writeFile(tempFile, code);
 
         // Use clang-format to check for style issues
         const styleResults = await execFilePromise('clang-format', [
@@ -131,12 +133,10 @@ exports.analyzeCode = async (req, res) => {
             tempFile
         ]);
 
-        // Parse the XML output to get style issues
         const styleIssues = styleResults.stdout.split('\n')
             .filter(line => line.includes('<replacement '))
             .map(line => {
                 const offset = line.match(/offset='(\d+)'/)?.[1];
-                const length = line.match(/length='(\d+)'/)?.[1];
                 return {
                     message: 'Style issue: Incorrect formatting',
                     line: getLineNumber(code, parseInt(offset)),
@@ -144,7 +144,6 @@ exports.analyzeCode = async (req, res) => {
                 };
             });
 
-        // Use clang-format with different checks for other issues
         const analysisResults = await execFilePromise('clang-format', [
             '--style=google',
             '--dry-run',
@@ -154,11 +153,10 @@ exports.analyzeCode = async (req, res) => {
             stderr: err.message || 'Analysis found issues'
         }));
 
-        // Clean up temp files
-        await fs.unlink(tempFile);
-        await fs.rmdir(tempDir);
+        // Clean up
+        await fsp.unlink(tempFile);
+        await fsp.rmdir(tempDir);
 
-        // Process and categorize results
         const categorizedResults = {
             errors: [],
             warnings: [],
@@ -169,26 +167,14 @@ exports.analyzeCode = async (req, res) => {
         if (analysisResults.stderr) {
             const issues = analysisResults.stderr.split('\n')
                 .filter(line => line.trim())
-                .map(line => {
-                    if (line.toLowerCase().includes('error')) {
-                        return {
-                            message: line,
-                            type: 'error'
-                        };
-                    }
-                    return {
-                        message: line,
-                        type: 'warning'
-                    };
-                });
+                .map(line => ({
+                    message: line,
+                    type: line.toLowerCase().includes('error') ? 'error' : 'warning'
+                }));
 
-            issues.forEach(issue => {
-                if (issue.type === 'error') {
-                    categorizedResults.errors.push(issue);
-                } else {
-                    categorizedResults.warnings.push(issue);
-                }
-            });
+            for (const issue of issues) {
+                categorizedResults[issue.type === 'error' ? 'errors' : 'warnings'].push(issue);
+            }
         }
 
         res.json({
@@ -196,6 +182,7 @@ exports.analyzeCode = async (req, res) => {
             results: categorizedResults,
             message: 'Code analysis completed'
         });
+
     } catch (error) {
         console.error('Analysis error:', error);
         res.status(500).json({
@@ -206,15 +193,15 @@ exports.analyzeCode = async (req, res) => {
     }
 };
 
-// Helper function to get line number from character offset
+// Helper to get line number from offset
 function getLineNumber(code, offset) {
     const lines = code.split('\n');
     let currentOffset = 0;
     for (let i = 0; i < lines.length; i++) {
-        currentOffset += lines[i].length + 1; // +1 for newline
+        currentOffset += lines[i].length + 1;
         if (currentOffset >= offset) {
             return i + 1;
         }
     }
     return 1;
-} 
+}
