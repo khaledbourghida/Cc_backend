@@ -78,32 +78,47 @@ exports.runFormat = async (req, res) => {
     const { code } = req.body;
 
     // Define paths
-    const clangPath = 'clang-format';
     const tempDir = path.join(__dirname, '..', 'temp');
     const tempFile = path.join(tempDir, 'format_temp.cpp');
+    
+    try {
+        // Ensure temp directory exists
+        if (!fs.existsSync(tempDir)) {
+            fs.mkdirSync(tempDir, { recursive: true });
+        }
 
-    // Ensure temp directory exists
-    if (!fs.existsSync(tempDir)) {
-        fs.mkdirSync(tempDir);
+        // Write the code to a temp file
+        fs.writeFileSync(tempFile, code);
+
+        // Run clang-format
+        exec(`clang-format "${tempFile}"`, (error, stdout, stderr) => {
+            // Clean up temp file
+            try {
+                fs.unlinkSync(tempFile);
+            } catch (e) {
+                console.error('Error cleaning up temp file:', e);
+            }
+
+            if (error) {
+                console.error(stderr);
+                return res.status(500).json({
+                    error: true,
+                    message: 'Formatting failed',
+                    details: stderr
+                });
+            }
+
+            res.json({
+                error: false,
+                formattedCode: stdout
+            });
+        });
+    } catch (error) {
+        console.error('Server error:', error);
+        res.status(500).json({
+            error: true,
+            message: 'Internal server error',
+            details: error.message
+        });
     }
-
-    // Write the code to a temp file
-    fs.writeFileSync(tempFile, code);
-
-    // Run clang-format
-    exec(`"${clangPath}" "${tempFile}"`, (error, stdout, stderr) => {
-        // Clean up temp file
-        try {
-            fs.unlinkSync(tempFile);
-        } catch (e) {
-            console.error('Error cleaning up temp file:', e);
-        }
-
-        if (error) {
-            console.error(stderr);
-            return res.status(500).json({ error: true, message: 'Formatting failed', details: stderr });
-        }
-
-        res.json({ error: false, formattedCode: stdout });
-    });
-};
+}; 
