@@ -2,6 +2,8 @@ const fs = require('fs');
 const path = require('path');
 const { exec } = require('child_process');
 const { error } = require('console');
+const { promisify } = require('util');
+const execAsync = promisify(exrc);  
 
 
 
@@ -85,18 +87,15 @@ exports.runFormat = async (req, res) => {
     }
 
     try {
-        const formattedCode = await prettier.format(code, {
-            parser: 'cpp',
-            plugins: ['prettier-plugin-cpp'],
-            tabWidth: 4,
-            useTabs: false,
-            semi: true,
-            singleQuote: false
-        });
+        const { stdout, stderr } = await execAsync('echo ' + JSON.stringify(code) + ' | clang-format');
+        
+        if (stderr) {
+            throw new Error(stderr);
+        }
 
         res.json({
             error: false,
-            formattedCode,
+            formattedCode: stdout,
             message: 'Code formatted successfully'
         });
     } catch (error) {
