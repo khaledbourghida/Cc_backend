@@ -77,7 +77,8 @@ exports.runCode = async (req, res) => {
 exports.runFormat = async (req, res) => {
     const { code } = req.body;
 
-    // Create a temporary file path
+    // Define paths
+    const clangPath = path.join(__dirname, '..', 'tools', 'clang-format.exe');
     const tempDir = path.join(__dirname, '..', 'temp');
     const tempFile = path.join(tempDir, 'format_temp.cpp');
 
@@ -90,7 +91,7 @@ exports.runFormat = async (req, res) => {
     fs.writeFileSync(tempFile, code);
 
     // Run clang-format
-    exec(`"C:/msys64/mingw64/bin/clang-format" "${tempFile}"`, (error, stdout, stderr) => {
+    exec(`"${clangPath}" "${tempFile}"`, (error, stdout, stderr) => {
         // Clean up temp file
         try {
             fs.unlinkSync(tempFile);
