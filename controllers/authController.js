@@ -5,7 +5,7 @@ const { promisify } = require('util');
 const execAsync = promisify(exec);
 const astyle = require('astyle');
 const cppLint = require('cpp-lint');
-
+const execFilePromise = util.promisify(execFile);
 
 
 exports.getFunc = async (req , res) => {
@@ -126,59 +126,72 @@ exports.analyzeCode = async (req, res) => {
         const tempFile = path.join(tempDir, 'temp.cpp');
         await fs.writeFile(tempFile, code);
 
-        // Analyze code using cpp-lint
-        const analysisResults = await new Promise((resolve, reject) => {
-            cppLint.lint(tempFile, {
-                filters: [
-                    '+whitespace',
-                    '+readability',
-                    '+performance',
-                    '+portability',
-                    '+information'
-                ]
-            }, (err, results) => {
-                // Clean up temp file
-                fs.unlink(tempFile).catch(console.error);
-                fs.rmdir(tempDir).catch(console.error);
+        // Use clang-format to check for style issues
+        const styleResults = await execFilePromise('clang-format', [
+            '--style=google',
+            '--output-replacements-xml',
+            tempFile
+        ]);
 
-                if (err) reject(err);
-                else resolve(results);
+        // Parse the XML output to get style issues
+        const styleIssues = styleResults.stdout.split('\n')
+            .filter(line => line.includes('<replacement '))
+            .map(line => {
+                const offset = line.match(/offset='(\d+)'/)?.[1];
+                const length = line.match(/length='(\d+)'/)?.[1];
+                return {
+                    message: 'Style issue: Incorrect formatting',
+                    line: getLineNumber(code, parseInt(offset)),
+                    type: 'style'
+                };
             });
-        });
+
+        // Use clang-format with different checks for other issues
+        const analysisResults = await execFilePromise('clang-format', [
+            '--style=google',
+            '--dry-run',
+            '--Werror',
+            tempFile
+        ]).catch(err => ({
+            stderr: err.message || 'Analysis found issues'
+        }));
+
+        // Clean up temp files
+        await fs.unlink(tempFile);
+        await fs.rmdir(tempDir);
 
         // Process and categorize results
         const categorizedResults = {
             errors: [],
             warnings: [],
-            style: [],
+            style: styleIssues,
             performance: []
         };
 
-        analysisResults.forEach(result => {
-            const issue = {
-                message: result.message,
-                line: result.line,
-                type: result.severity
-            };
+        if (analysisResults.stderr) {
+            const issues = analysisResults.stderr.split('\n')
+                .filter(line => line.trim())
+                .map(line => {
+                    if (line.toLowerCase().includes('error')) {
+                        return {
+                            message: line,
+                            type: 'error'
+                        };
+                    }
+                    return {
+                        message: line,
+                        type: 'warning'
+                    };
+                });
 
-            switch (result.category) {
-                case 'error':
+            issues.forEach(issue => {
+                if (issue.type === 'error') {
                     categorizedResults.errors.push(issue);
-                    break;
-                case 'warning':
+                } else {
                     categorizedResults.warnings.push(issue);
-                    break;
-                case 'style':
-                case 'readability':
-                    categorizedResults.style.push(issue);
-                    break;
-                case 'performance':
-                    categorizedResults.performance.push(issue);
-                    break;
-                default:
-                    categorizedResults.warnings.push(issue);
-            }
-        });
+                }
+            });
+        }
 
         res.json({
             error: false,
@@ -193,4 +206,17 @@ exports.analyzeCode = async (req, res) => {
             details: error.message
         });
     }
-}; 
+};
+
+// Helper function to get line number from character offset
+function getLineNumber(code, offset) {
+    const lines = code.split('\n');
+    let currentOffset = 0;
+    for (let i = 0; i < lines.length; i++) {
+        currentOffset += lines[i].length + 1; // +1 for newline
+        if (currentOffset >= offset) {
+            return i + 1;
+        }
+    }
+    return 1;
+} 
