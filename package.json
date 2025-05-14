@@ -12,6 +12,8 @@
   "description": "",
   "dependencies": {
     "cors": "^2.8.5",
-    "express": "^5.1.0"
+    "express": "^5.1.0",
+    "prettier": "^2.8.8",
+    "prettier-plugin-c": "^0.1.1"
   }
 }
