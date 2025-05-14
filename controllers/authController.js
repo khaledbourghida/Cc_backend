@@ -3,7 +3,7 @@ const path = require('path');
 const { exec } = require('child_process');
 const { promisify } = require('util');
 const execAsync = promisify(exec);
-const execFilePromise = util.promisify(execFile);
+// const execFilePromise = util.promisify(execFile);
 
 
 exports.getFunc = async (req , res) => {
