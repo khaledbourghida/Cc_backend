@@ -87,7 +87,7 @@ exports.runFormat = async (req, res) => {
     try {
         const formattedCode = await prettier.format(code, {
             parser: 'cpp',
-            plugins: ['@prettier/plugin-cpp'],
+            plugins: ['prettier-plugin-cpp'],
             tabWidth: 4,
             useTabs: false,
             semi: true,
