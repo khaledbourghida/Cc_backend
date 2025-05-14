@@ -107,3 +107,96 @@ exports.runFormat = async (req, res) => {
         });
     }
 }; 
+
+exports.analyzeCode = async (req, res) => {
+    const { code } = req.body;
+
+    if (!code) {
+        return res.status(400).json({
+            error: true,
+            message: 'No code provided'
+        });
+    }
+
+    try {
+        // Create a temporary directory for analysis
+        const tempDir = path.join(__dirname, '..', 'temp');
+        await fs.mkdir(tempDir, { recursive: true });
+        
+        // Write code to a temporary file (clang-tidy needs a file)
+        const tempFile = path.join(tempDir, 'temp.cpp');
+        await fs.writeFile(tempFile, code);
+
+        // Run clang-tidy with a comprehensive set of checks
+        const checks = [
+            'bugprone-*',          // Detect bug-prone patterns
+            'clang-analyzer-*',    // Static analyzer checks
+            'cppcoreguidelines-*', // C++ core guidelines
+            'performance-*',       // Performance-related checks
+            'readability-*',       // Readability issues
+            'modernize-*'          // Modernization suggestions
+        ].join(',');
+
+        const { stdout, stderr } = await execAsync(
+            `clang-tidy ${tempFile} -checks=${checks} --`,
+            { maxBuffer: 1024 * 1024 } // Increase buffer size for large outputs
+        );
+
+        // Clean up temporary files
+        await fs.unlink(tempFile);
+        await fs.rmdir(tempDir);
+
+        // Parse the analysis results
+        const analysisResults = parseClangTidyOutput(stdout + stderr);
+
+        res.json({
+            error: false,
+            results: analysisResults,
+            message: 'Code analysis completed'
+        });
+    } catch (error) {
+        console.error('Analysis error:', error);
+        res.status(500).json({
+            error: true,
+            message: 'Analysis failed',
+            details: error.message
+        });
+    }
+};
+
+function parseClangTidyOutput(output) {
+    const results = {
+        errors: [],
+        warnings: [],
+        style: [],
+        performance: []
+    };
+
+    const lines = output.split('\n');
+    
+    for (const line of lines) {
+        if (!line.includes('warning:') && !line.includes('error:')) continue;
+
+        const result = {
+            message: line.trim(),
+            type: 'other'
+        };
+
+        // Categorize the issue
+        if (line.includes('error:')) {
+            result.type = 'error';
+            results.errors.push(result);
+        } else if (line.includes('performance-')) {
+            result.type = 'performance';
+            results.performance.push(result);
+        } else if (line.includes('readability-') || line.includes('modernize-')) {
+            result.type = 'style';
+            results.style.push(result);
+        } else {
+            result.type = 'warning';
+            results.warnings.push(result);
+        }
+    }
+
+    return results;
+} 
