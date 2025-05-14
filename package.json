@@ -14,7 +14,7 @@
     "cors": "^2.8.5",
     "express": "^5.1.0",
     "clang-format": "^1.8.0",
-    "cpp-lint": "^0.1.2",
+    "node-cppheck": "^0.2.0",
     "prettier": "^2.8.8"
   }
 }
