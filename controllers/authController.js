@@ -84,78 +84,26 @@ exports.runFormat = async (req, res) => {
         });
     }
 
-    // Define paths
-    const tempDir = path.join(__dirname, '..', 'temp');
-    const tempFile = path.join(tempDir, 'format_temp.cpp');
-    
     try {
-        // Ensure temp directory exists
-        if (!fs.existsSync(tempDir)) {
-            fs.mkdirSync(tempDir, { recursive: true });
-        }
+        const formattedCode = await prettier.format(code, {
+            parser: 'cpp',
+            plugins: ['@prettier/plugin-cpp'],
+            tabWidth: 4,
+            useTabs: false,
+            semi: true,
+            singleQuote: false
+        });
 
-        // Write the code to a temp file
-        fs.writeFileSync(tempFile, code);
-
-        // Run clang-format with error checking
-        exec('clang-format --version', (versionError, versionStdout, versionStderr) => {
-            if (versionError) {
-                console.error('clang-format not found:', versionError);
-                return res.status(500).json({
-                    error: true,
-                    message: 'clang-format not available',
-                    details: versionError.message
-                });
-            }
-
-            // If clang-format is available, proceed with formatting
-            exec(`clang-format "${tempFile}"`, (error, stdout, stderr) => {
-                // Clean up temp file
-                try {
-                    fs.unlinkSync(tempFile);
-                } catch (e) {
-                    console.error('Error cleaning up temp file:', e);
-                }
-
-                if (error) {
-                    console.error('Formatting error:', error);
-                    console.error('stderr:', stderr);
-                    return res.status(500).json({
-                        error: true,
-                        message: 'Formatting failed',
-                        details: stderr || error.message
-                    });
-                }
-
-                if (!stdout.trim()) {
-                    return res.status(500).json({
-                        error: true,
-                        message: 'Formatting produced empty output',
-                        details: 'The formatter did not return any formatted code'
-                    });
-                }
-
-                res.json({
-                    error: false,
-                    formattedCode: stdout,
-                    message: 'Code formatted successfully'
-                });
-            });
+        res.json({
+            error: false,
+            formattedCode,
+            message: 'Code formatted successfully'
         });
     } catch (error) {
-        console.error('Server error:', error);
-        // Clean up temp file in case of error
-        try {
-            if (fs.existsSync(tempFile)) {
-                fs.unlinkSync(tempFile);
-            }
-        } catch (e) {
-            console.error('Error cleaning up temp file:', e);
-        }
-
+        console.error('Formatting error:', error);
         res.status(500).json({
             error: true,
-            message: 'Internal server error',
+            message: 'Formatting failed',
             details: error.message
         });
     }
