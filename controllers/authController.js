@@ -3,7 +3,7 @@ const path = require('path');
 const { exec } = require('child_process');
 const { error } = require('console');
 const { promisify } = require('util');
-const execAsync = promisify(exec);  
+const execAsync = promisify(exec);
 
 
 
