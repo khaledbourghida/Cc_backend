@@ -73,3 +73,36 @@ exports.runCode = async (req, res) => {
         });
     });
 };
+
+exports.runFormat = async (req, res) => {
+    const { code } = req.body;
+
+    // Create a temporary file path
+    const tempDir = path.join(__dirname, '..', 'temp');
+    const tempFile = path.join(tempDir, 'format_temp.cpp');
+
+    // Ensure temp directory exists
+    if (!fs.existsSync(tempDir)) {
+        fs.mkdirSync(tempDir);
+    }
+
+    // Write the code to a temp file
+    fs.writeFileSync(tempFile, code);
+
+    // Run clang-format
+    exec(`clang-format "${tempFile}"`, (error, stdout, stderr) => {
+        // Clean up temp file
+        try {
+            fs.unlinkSync(tempFile);
+        } catch (e) {
+            console.error('Error cleaning up temp file:', e);
+        }
+
+        if (error) {
+            console.error(stderr);
+            return res.status(500).json({ error: true, message: 'Formatting failed', details: stderr });
+        }
+
+        res.json({ error: false, formattedCode: stdout });
+    });
+};
