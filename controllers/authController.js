@@ -90,7 +90,7 @@ exports.runFormat = async (req, res) => {
     fs.writeFileSync(tempFile, code);
 
     // Run clang-format
-    exec(`clang-format "${tempFile}"`, (error, stdout, stderr) => {
+    exec(`"C:/msys64/mingw64/bin/clang-format" "${tempFile}"`, (error, stdout, stderr) => {
         // Clean up temp file
         try {
             fs.unlinkSync(tempFile);
