@@ -3,6 +3,6 @@ const router = express.Router();
 const { analyzePerformance } = require('../controllers/performanceController');
 
 // Performance analysis endpoint
-router.post('/analyze', analyzePerformance);
+router.post('/perfermence', analyzePerformance);
 
 module.exports = router; 
