@@ -38,28 +38,19 @@ class PerformanceAnalyzer {
         this.metrics.totalLines = this.code.split('\n')
             .filter(line => line.trim().length > 0).length;
 
-        // Use tree-sitter to traverse the AST
         const cursor = this.tree.walk();
 
         const visit = () => {
-            const node = cursor.currentNode;
-            
-            // Count functions
+            const node = cursor.currentNode; // ✅ fixed
+
             if (node.type === 'function_definition') {
                 this.metrics.functionCount++;
-            }
-            
-            // Count loops
-            else if (['for_statement', 'while_statement', 'do_statement'].includes(node.type)) {
+            } else if (['for_statement', 'while_statement', 'do_statement'].includes(node.type)) {
                 this.metrics.loopCount++;
-            }
-            
-            // Count conditionals
-            else if (['if_statement', 'switch_statement'].includes(node.type)) {
+            } else if (['if_statement', 'switch_statement'].includes(node.type)) {
                 this.metrics.conditionalCount++;
             }
 
-            // Continue traversing
             if (cursor.gotoFirstChild()) {
                 do {
                     visit();
@@ -79,23 +70,20 @@ class PerformanceAnalyzer {
         const recursiveFunctions = new Set();
 
         const visit = () => {
-            const node = cursor.currentNode();
+            const node = cursor.currentNode; // ✅ fixed
 
-            // Track nested loops
             if (['for_statement', 'while_statement', 'do_statement'].includes(node.type)) {
                 loopDepth++;
                 maxLoopDepth = Math.max(maxLoopDepth, loopDepth);
             }
 
-            // Track function definitions and calls
             if (node.type === 'function_definition') {
                 const nameNode = node.childForFieldName('declarator')
                     ?.childForFieldName('declarator');
                 if (nameNode) {
                     functionNames.add(nameNode.text);
                 }
-            }
-            else if (node.type === 'call_expression') {
+            } else if (node.type === 'call_expression') {
                 const funcName = node.childForFieldName('function')?.text;
                 if (funcName && functionNames.has(funcName)) {
                     recursiveFunctions.add(funcName);
@@ -109,7 +97,6 @@ class PerformanceAnalyzer {
                 cursor.gotoParent();
             }
 
-            // Reset loop depth when exiting a loop
             if (['for_statement', 'while_statement', 'do_statement'].includes(node.type)) {
                 loopDepth--;
             }
@@ -120,7 +107,6 @@ class PerformanceAnalyzer {
         this.metrics.nestedLoopCount = Math.max(0, maxLoopDepth - 1);
         this.metrics.recursionCount = recursiveFunctions.size;
 
-        // Determine complexity
         if (this.metrics.nestedLoopCount >= 2) {
             this.metrics.complexity = `O(n^${this.metrics.nestedLoopCount + 1})`;
         } else if (this.metrics.nestedLoopCount === 1) {
@@ -133,7 +119,6 @@ class PerformanceAnalyzer {
     }
 
     generateInsights() {
-        // Check for nested loops
         if (this.metrics.nestedLoopCount > 1) {
             this.insights.push({
                 type: 'warning',
@@ -142,7 +127,6 @@ class PerformanceAnalyzer {
             this.metrics.score -= 15 * (this.metrics.nestedLoopCount - 1);
         }
 
-        // Check for recursion
         if (this.metrics.recursionCount > 0) {
             this.insights.push({
                 type: 'info',
@@ -151,7 +135,6 @@ class PerformanceAnalyzer {
             this.metrics.score -= 5;
         }
 
-        // Check for excessive functions
         if (this.metrics.functionCount > 10) {
             this.insights.push({
                 type: 'suggestion',
@@ -160,7 +143,6 @@ class PerformanceAnalyzer {
             this.metrics.score -= 5;
         }
 
-        // Check code size
         if (this.metrics.totalLines > 200) {
             this.insights.push({
                 type: 'suggestion',
@@ -169,7 +151,6 @@ class PerformanceAnalyzer {
             this.metrics.score -= 10;
         }
 
-        // Check loop complexity
         if (this.metrics.loopCount > 5) {
             this.insights.push({
                 type: 'warning',
@@ -178,17 +159,14 @@ class PerformanceAnalyzer {
             this.metrics.score -= 5;
         }
 
-        // Ensure score stays within bounds
         this.metrics.score = Math.max(0, Math.min(100, this.metrics.score));
     }
 
     calculateScore() {
-        // Additional score adjustments based on complexity
         if (this.metrics.nestedLoopCount > 2) {
             this.metrics.score -= 20;
         }
-        
-        // Penalize for very large functions
+
         const avgLinesPerFunction = this.metrics.totalLines / Math.max(1, this.metrics.functionCount);
         if (avgLinesPerFunction > 50) {
             this.metrics.score -= 10;
@@ -205,7 +183,7 @@ class PerformanceAnalyzer {
 exports.analyzePerformance = async (req, res) => {
     try {
         const { code } = req.body;
-        
+
         if (!code) {
             return res.status(400).json({
                 success: false,
@@ -228,4 +206,4 @@ exports.analyzePerformance = async (req, res) => {
             details: error.message
         });
     }
-}; 
+};
