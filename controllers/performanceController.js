@@ -42,7 +42,7 @@ class PerformanceAnalyzer {
         const cursor = this.tree.walk();
 
         const visit = () => {
-            const node = cursor.currentNode();
+            const node = cursor.currentNode;
             
             // Count functions
             if (node.type === 'function_definition') {
