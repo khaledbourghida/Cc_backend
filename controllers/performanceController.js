@@ -68,45 +68,53 @@ class PerformanceAnalyzer {
         let maxLoopDepth = 0;
         const functionNames = new Set();
         const recursiveFunctions = new Set();
-
+    
         const visit = () => {
-            const node = cursor.currentNode; // ✅ fixed
-
+            const node = cursor.currentNode;
+    
+            // Track nested loops
             if (['for_statement', 'while_statement', 'do_statement'].includes(node.type)) {
                 loopDepth++;
                 maxLoopDepth = Math.max(maxLoopDepth, loopDepth);
             }
-
+    
+            // Track function definitions
             if (node.type === 'function_definition') {
-                const nameNode = node.childForFieldName('declarator')
-                    ?.childForFieldName('declarator');
-                if (nameNode) {
+                const declarator = node.childForFieldName?.('declarator');
+                const innerDeclarator = declarator?.childForFieldName?.('declarator');
+                const nameNode = innerDeclarator || declarator;
+    
+                if (nameNode && typeof nameNode.text === 'string') {
                     functionNames.add(nameNode.text);
                 }
-            } else if (node.type === 'call_expression') {
-                const funcName = node.childForFieldName('function')?.text;
+            }
+    
+            // Track function calls
+            else if (node.type === 'call_expression') {
+                const funcNode = node.childForFieldName?.('function');
+                const funcName = funcNode?.text;
                 if (funcName && functionNames.has(funcName)) {
                     recursiveFunctions.add(funcName);
                 }
             }
-
+    
             if (cursor.gotoFirstChild()) {
                 do {
                     visit();
                 } while (cursor.gotoNextSibling());
                 cursor.gotoParent();
             }
-
+    
             if (['for_statement', 'while_statement', 'do_statement'].includes(node.type)) {
                 loopDepth--;
             }
         };
-
+    
         visit();
-
+    
         this.metrics.nestedLoopCount = Math.max(0, maxLoopDepth - 1);
         this.metrics.recursionCount = recursiveFunctions.size;
-
+    
         if (this.metrics.nestedLoopCount >= 2) {
             this.metrics.complexity = `O(n^${this.metrics.nestedLoopCount + 1})`;
         } else if (this.metrics.nestedLoopCount === 1) {
